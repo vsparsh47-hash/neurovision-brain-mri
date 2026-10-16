@@ -90,3 +90,55 @@ if uploaded is not None:
 
 st.divider()
 st.caption("For hackathon demonstration only. Dataset performance does not establish real-world clinical validity.")
+
+# ---- Model Comparison Dashboard ----
+import json
+import pandas as pd
+
+st.divider()
+st.header("📊 Model Performance Comparison")
+st.write("Compare all trained models on the same test dataset.")
+
+metric_files = {
+    "EfficientNetB0": "outputs/efficientnet_b0_metrics.json",
+    "ResNet50": "outputs/resnet50_metrics.json",
+    "Custom CNN": "outputs/custom_cnn_metrics.json",
+}
+
+comparison = []
+
+for model_name, file_path in metric_files.items():
+    path = Path(file_path)
+    if path.exists():
+        with open(path, "r", encoding="utf-8") as f:
+            metrics = json.load(f)
+
+        comparison.append({
+            "Model": model_name,
+            "Accuracy (%)": round(metrics["accuracy"] * 100, 2),
+            "Macro F1": round(metrics["macro_f1"], 4),
+        })
+
+if comparison:
+    df = pd.DataFrame(comparison)
+
+    st.subheader("Accuracy")
+    st.bar_chart(df.set_index("Model")[["Accuracy (%)"]])
+
+    st.subheader("Macro F1-score")
+    st.bar_chart(df.set_index("Model")[["Macro F1"]])
+
+    st.subheader("Detailed Results")
+    st.dataframe(df, hide_index=True, use_container_width=True)
+
+    best_model = df.sort_values(
+        "Macro F1", ascending=False
+    ).iloc[0]
+
+    st.success(
+        f"Best model by macro F1: {best_model['Model']} "
+        f"(Macro F1 = {best_model['Macro F1']:.4f})"
+    )
+else:
+    st.info("Train and evaluate models to populate this comparison.")
+
