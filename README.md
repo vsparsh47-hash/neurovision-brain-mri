@@ -105,4 +105,21 @@ neurovision-brain-mri/
 
 ## Team
 
-Add team members and their contributions before submission.
+Sparsh Verma , Abhinav Singh
+## Experimental Results
+
+All three models were evaluated on the same 1,600-image test set.
+
+| Model | Accuracy | Macro F1-score |
+|---|---:|---:|
+| ResNet50 | 95.13% | 0.9506 |
+| EfficientNetB0 | 94.50% | 0.9437 |
+| Custom CNN | 58.06% | 0.5823 |
+
+ResNet50 achieved the highest measured accuracy and macro F1-score among the three evaluated models.
+
+### Explainability
+Grad-CAM visualizations are provided for supported pretrained models to help inspect the image regions influencing predictions.
+
+### Limitations
+These results apply to the evaluated dataset and do not establish clinical validity or performance on MRI scans from other hospitals. The system is intended for research and educational use, not medical diagnosis.
