@@ -1,4 +1,5 @@
 import html
+import io
 import json
 import re
 from pathlib import Path
@@ -102,6 +103,7 @@ button[data-baseweb="tab"][aria-selected="true"]{color:var(--tx);}
 [data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:12px;overflow:hidden;}
 [data-testid="stAlert"]{border-radius:12px;border:1px solid var(--line2);background:var(--s1);}
 [data-testid="stCode"] pre{border-radius:12px;}
+[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"]{background:var(--ac);}
 
 /* Verdict */
 .verdict{display:grid;grid-template-columns:1.35fr .65fr;gap:40px;align-items:end;padding:34px 38px;margin-bottom:18px;
@@ -137,6 +139,24 @@ button[data-baseweb="tab"][aria-selected="true"]{color:var(--tx);}
 .row.lead .r-name{color:var(--tx);font-weight:600;}
 .row.lead .r-pct{color:var(--ac);}
 .row.lead .r-fill{background:var(--ac);}
+
+/* Inline sections */
+.sub{font:400 clamp(26px,2.8vw,34px)/1.1 var(--serif);letter-spacing:-.015em;color:var(--tx);margin:46px 0 6px;}
+.sub-s{font-size:14.5px;color:var(--mu);margin-bottom:22px;max-width:620px;line-height:1.6;}
+.cap{display:flex;justify-content:space-between;align-items:baseline;margin:0 2px 10px;}
+.cap b{font:600 14px var(--sans);color:var(--tx);display:flex;align-items:center;}
+.cap span{font:400 12px var(--mono);color:var(--mu);}
+.cap.hot b{color:var(--ac);}
+.legend{display:flex;align-items:center;gap:14px;margin:22px 0 4px;max-width:520px;}
+.legend span{font-size:12.5px;color:var(--mu);white-space:nowrap;}
+.legend div{flex:1;height:6px;border-radius:99px;border:1px solid var(--line2);}
+
+/* Grad-CAM */
+.cap .n{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:6px;
+  background:var(--s3);border:1px solid var(--line2);font:500 10px var(--mono);color:var(--mu);margin-right:9px;}
+.cap.hot .n{background:var(--ac-soft);border-color:rgba(138,211,195,.42);color:var(--ac);}
+.cam-note{font:400 12px var(--mono);line-height:1.55;color:var(--mu);
+  border-left:2px solid var(--line2);padding:2px 0 2px 12px;margin-top:34px;}
 
 /* Performance */
 .perf{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--s1);margin-bottom:16px;}
@@ -186,6 +206,19 @@ def perf_metric(label, shown, width, best):
             f'<div class="r-track"><div class="r-fill" style="width:{max(width, 0.5):.2f}%;background:{color}"></div></div></div>')
 
 
+def region_name(v_frac: float, h_frac: float) -> str:
+    """Turn a normalised peak coordinate into a readable anatomical-ish label."""
+    v = "upper" if v_frac < 0.38 else ("lower" if v_frac > 0.62 else "middle")
+    h = "left" if h_frac < 0.38 else ("right" if h_frac > 0.62 else "centre")
+    if v == "middle" and h == "centre":
+        return "centre"
+    if v == "middle":
+        return h
+    if h == "centre":
+        return v
+    return f"{v} {h}"
+
+
 @st.cache_resource(show_spinner=False)
 def load_checkpoint(path_str: str, device_str: str, mtime: float):
     """Load once per checkpoint file; reruns (slider, tabs) reuse the model."""
@@ -195,6 +228,30 @@ def load_checkpoint(path_str: str, device_str: str, mtime: float):
     model.load_state_dict(ckpt["state_dict"])
     model.eval()
     return model, list(ckpt["classes"]), ckpt.get("image_size", 224), ckpt["model_name"]
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def compute_gradcam(image_bytes: bytes, path_str: str, mtime: float, device_str: str, class_idx: int, size: int):
+    """One Grad-CAM per (image, class, checkpoint). Overlay controls then redraw instantly."""
+    device = torch.device(device_str)
+    model, _classes, _size, model_name = load_checkpoint(path_str, device_str, mtime)
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    tensor = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])(image).unsqueeze(0).to(device)
+
+    helper = GradCAM(model, get_target_layer(model, model_name))
+    try:
+        cam, _ = helper(tensor, class_idx)
+    finally:
+        helper.close()
+
+    cam = np.asarray(cam, dtype=float)
+    cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
+    cam = np.asarray(Image.fromarray((cam * 255).astype(np.uint8)).resize((size, size), Image.BILINEAR), dtype=float) / 255.0
+    return cam
 
 
 CHECKPOINTS = {
@@ -317,57 +374,79 @@ if analyzed:
            f'This describes the model output only. Softmax scores can be overconfident.</div></div>')
 
     score_df = pd.DataFrame({"Dataset class": classes, "Model score (%)": (scores * 100).round(2)}).sort_values("Model score (%)", ascending=False)
-    st.write("")
-    tab_scores, tab_cam, tab_report = st.tabs(["Class scores", "Grad-CAM", "Report"])
 
-    with tab_scores:
-        c1, c2 = st.columns([1.1, .9], gap="large")
-        with c1:
-            ui(f'<div class="panel"><div class="p-title">Score by class</div>'
-               f'<div class="p-copy">Highest first.</div>'
-               f'{score_rows([(classes[i], float(scores[i] * 100)) for i in order])}</div>')
-        with c2:
-            st.dataframe(score_df, hide_index=True, use_container_width=True)
+    # Class scores
+    ui('<div class="sub">Class scores</div><div class="sub-s">How the model distributed its confidence, highest first.</div>')
+    c1, c2 = st.columns([1.1, .9], gap="large")
+    with c1:
+        ui(f'<div class="panel" style="margin-bottom:0">{score_rows([(classes[i], float(scores[i] * 100)) for i in order])}</div>')
+    with c2:
+        st.dataframe(score_df, hide_index=True, use_container_width=True)
 
-    with tab_cam:
-        if model_name in ("resnet50", "efficientnet_b0"):
-            ctl1, ctl2, _ = st.columns([1, 1, 1.2])
-            alpha = ctl1.slider("Overlay strength", 0.1, 0.9, 0.5, 0.05)
-            cmap = ctl2.selectbox("Colormap", ["magma", "inferno", "turbo", "jet"])
-            cam_helper = GradCAM(model, get_target_layer(model, model_name))
-            try:
-                cam, _ = cam_helper(tensor, idx)
-                cam = np.asarray(cam, dtype=float)
-                cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
-                base = image_pil.resize((size, size))
-                fig, axes = plt.subplots(1, 3, figsize=(12, 4.4))
-                fig.patch.set_facecolor("#10141b")
-                axes[0].imshow(base)
-                axes[0].set_title("Original", color="#b9bcc4", fontsize=11, pad=10)
-                axes[1].imshow(base)
-                axes[1].imshow(cam, cmap=cmap, alpha=alpha)
-                axes[1].set_title("Overlay", color="#8ad3c3", fontsize=11, pad=10)
-                axes[2].imshow(cam, cmap=cmap)
-                axes[2].set_title("Attention map", color="#b9bcc4", fontsize=11, pad=10)
-                for ax in axes:
-                    ax.axis("off")
-                fig.tight_layout()
-                st.pyplot(fig, use_container_width=True)
-                plt.close(fig)
-            finally:
-                cam_helper.close()
-            st.caption(f"Explaining the predicted class: {classes[idx]}. Brighter regions had more influence.")
-        else:
-            st.info("Grad-CAM is available for ResNet50 and EfficientNetB0.")
+    # ── Grad-CAM — inline, part of the same page flow ────────────────────────
+    ui('<div class="sub">Where the model looked</div>'
+       f'<div class="sub-s">Grad-CAM for the predicted class, <b style="color:var(--tx)">{html.escape(str(classes[idx]))}</b>. '
+       'Brighter regions had more influence on the score. It is an approximation, not a clinical explanation.</div>')
 
-    with tab_report:
-        report = f"NeuroVision — Research Prototype\nImage: {uploaded.name}\nModel: {model_name}\nPredicted dataset class: {classes[idx]}\nModel scores:\n"
-        report += "\n".join(f"- {c}: {s:.4f}" for c, s in zip(classes, scores))
-        report += "\n\nNot a medical diagnostic tool."
+    if model_name in ("resnet50", "efficientnet_b0"):
+        ctl1, ctl2, ctl3 = st.columns([1, 1, 1.6], gap="medium")
+        with ctl1:
+            alpha = st.slider("Overlay strength", 0.1, 0.9, 0.5, 0.05)
+        with ctl2:
+            cmap_name = st.selectbox("Colormap", ["magma", "inferno", "turbo", "jet"])
+        with ctl3:
+            ui('<div class="cam-note">Heat map is computed once per image and class, so these controls redraw instantly.</div>')
+
+        cam = compute_gradcam(
+            uploaded.getvalue(), str(checkpoint_path), checkpoint_path.stat().st_mtime,
+            str(device), idx, int(size),
+        )
+        base_arr = np.asarray(image_pil.resize((size, size)), dtype=float) / 255.0
+        cmap = plt.get_cmap(cmap_name)
+        heat = cmap(cam)[..., :3]
+        overlay = np.clip(base_arr * (1 - alpha) + heat * alpha, 0, 1)
+        to_u8 = lambda a: (a * 255).astype(np.uint8)
+
+        g1, g2, g3 = st.columns(3, gap="medium")
+        with g1:
+            ui('<div class="cap"><b><span class="n">1</span>Original</b><span>input</span></div>')
+            st.image(to_u8(base_arr), use_container_width=True)
+        with g2:
+            ui('<div class="cap hot"><b><span class="n">2</span>Overlay</b><span>model attention</span></div>')
+            st.image(to_u8(overlay), use_container_width=True)
+        with g3:
+            ui('<div class="cap"><b><span class="n">3</span>Attention map</b><span>heatmap only</span></div>')
+            st.image(to_u8(heat), use_container_width=True)
+
+        stops = ", ".join(f"rgb({int(r*255)},{int(g*255)},{int(b*255)})" for r, g, b, _ in (cmap(t) for t in np.linspace(0, 1, 8)))
+        ui(f'<div class="legend"><span>Lower influence</span><div style="background:linear-gradient(90deg,{stops})"></div><span>Higher influence</span></div>')
+
+        peak_y, peak_x = np.unravel_index(int(np.argmax(cam)), cam.shape)
+        peak = region_name(peak_y / max(cam.shape[0] - 1, 1), peak_x / max(cam.shape[1] - 1, 1))
+        hot_area = float((cam > 0.5).mean() * 100)
+        ui(f"""
+        <div class="facts" style="margin-top:22px">
+          <div class="fact"><span>Peak influence</span><b>{html.escape(peak)}</b></div>
+          <div class="fact"><span>Highlighted area</span><b>{hot_area:.1f}%</b></div>
+          <div class="fact"><span>Overlay</span><b>{html.escape(cmap_name)} · {alpha:.2f}</b></div>
+          <div class="fact"><span>Method</span><b>Grad-CAM</b></div>
+        </div>
+        """)
+        ui('<div class="cam-note">Grad-CAM weights the final convolutional feature maps by the gradient of the '
+           'predicted class. Bright areas are where the score was most sensitive — they are not proof of disease.</div>')
+    else:
+        st.info("Grad-CAM is available for ResNet50 and EfficientNetB0.")
+
+    # Export
+    ui('<div class="sub">Export</div><div class="sub-s">Save this analysis for your notes or lab records.</div>')
+    report = f"NeuroVision — Research Prototype\nImage: {uploaded.name}\nModel: {model_name}\nPredicted dataset class: {classes[idx]}\nModel scores:\n"
+    report += "\n".join(f"- {c}: {s:.4f}" for c, s in zip(classes, scores))
+    report += "\n\nNot a medical diagnostic tool."
+    d1, d2, _ = st.columns([1, 1, 1.4])
+    d1.download_button("Download report (.txt)", report, file_name="neurovision_report.txt", mime="text/plain", use_container_width=True)
+    d2.download_button("Download scores (.csv)", score_df.to_csv(index=False), file_name="neurovision_scores.csv", mime="text/csv", use_container_width=True)
+    with st.expander("Preview report"):
         st.code(report, language="text")
-        d1, d2 = st.columns(2)
-        d1.download_button("Download report (.txt)", report, file_name="neurovision_report.txt", mime="text/plain", use_container_width=True)
-        d2.download_button("Download scores (.csv)", score_df.to_csv(index=False), file_name="neurovision_scores.csv", mime="text/csv", use_container_width=True)
 
 # ── Model performance ────────────────────────────────────────────────────────
 st.divider()
