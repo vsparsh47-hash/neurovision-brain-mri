@@ -1,125 +1,318 @@
-# NeuroVision — Explainable Brain MRI Analysis
+# 🧠 NeuroVision: Explainable Brain MRI Classification
 
-NeuroVision is an educational hackathon prototype for classifying brain MRI images into four dataset labels:
-- Glioma
-- Meningioma
-- No tumor
-- Pituitary tumor
+**ML × ACS Hackathon 2026 | Medical Imaging & Explainable Artificial Intelligence**
 
-It includes a Streamlit upload interface, a model-training script, evaluation metrics, and Grad-CAM explainability.
+Python 3.10+ · PyTorch · TorchVision · Streamlit · Grad-CAM · License: MIT
 
-> **Medical disclaimer:** This is a research/educational prototype, not a clinically validated diagnostic tool. Never use its output to make medical decisions.
+NeuroVision is an interactive, machine learning-based brain MRI classification research and educational prototype. It is designed to classify uploaded brain MRI images into four categories—**Glioma, Meningioma, Pituitary Tumor, and No Tumor**—and support model interpretability through explainability visualizations.
 
-## 1. Dataset setup
+The project combines deep learning, medical image classification, and explainable AI in an interactive web application built with Streamlit.
 
-Use a properly licensed public dataset, such as the Brain Tumor MRI Dataset on Kaggle:
-https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset
+> ⚠️ **Research and educational prototype only. NeuroVision is not a medical diagnostic tool. Its predictions must not be used for clinical decisions.**
 
-Download and extract it locally. Arrange it like this (class folder names must match between train and test):
+## 📌 Executive Summary
 
-```text
-data/
-  Training/
-    glioma/
-    meningioma/
-    notumor/
-    pituitary/
-  Testing/
-    glioma/
-    meningioma/
-    notumor/
-    pituitary/
-```
+NeuroVision explores the application of convolutional neural networks (CNNs) and transfer learning to brain MRI image classification.
 
-The Kaggle dataset may use different capitalization or folder labels. Keep the original labels consistently, and inspect `train.py` output to confirm class order. Do not commit the dataset to GitHub.
+The project includes three model architectures:
 
-## 2. Install
+- **ResNet50:** A residual convolutional neural network used as a deep learning classification model.
+- **EfficientNet-B0:** A computationally efficient CNN architecture for image classification.
+- **Custom CNN:** A custom-designed convolutional neural network trained for the four-class classification task.
 
-```bash
-python -m venv .venv
-# Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# macOS/Linux:
-# source .venv/bin/activate
+The project stores model checkpoints separately to support model loading, evaluation, comparison, and future integration into the web application.
 
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
+**Important:** The existence of a checkpoint file does not independently establish that training completed correctly or that the model is accurate. Model performance should be reported only after reproducible evaluation on held-out data.
 
-## 3. Train a model
+### Classification Categories
 
-Start with EfficientNetB0:
+| Class | Description |
+|---|---|
+| Glioma | MRI image labelled as a glioma case |
+| Meningioma | MRI image labelled as a meningioma case |
+| No Tumor | MRI image labelled as containing no tumor |
+| Pituitary Tumor | MRI image labelled as a pituitary tumor case |
 
-```bash
-python train.py --data-dir data --model efficientnet_b0 --epochs 3
-```
+The output represents a model prediction for an image, not a confirmed medical diagnosis.
 
-Other options:
-```bash
-python train.py --data-dir data --model resnet50 --epochs 3
-python train.py --data-dir data --model custom_cnn --epochs 5
-```
+## 🎯 Project Objectives
 
-The script expects `data/Training` and `data/Testing`, each containing one folder per class. It saves a checkpoint under `models/` and class metadata in the checkpoint.
+- Develop an interactive brain MRI classification application.
+- Explore transfer learning with ResNet50 and EfficientNet-B0.
+- Implement a custom CNN for comparison with established architectures.
+- Investigate explainable AI methods such as Grad-CAM.
+- Provide an accessible interface for uploading MRI images and viewing model outputs.
+- Establish a reproducible workflow for training, evaluation, and deployment.
 
-For a short hackathon, begin with 2–3 epochs to confirm the pipeline works. Training time depends on your hardware. GPU acceleration is recommended.
+## 🎨 Application Highlights
 
-## 4. Evaluate
+### 1. 🧠 Brain MRI Classification
 
-```bash
-python evaluate.py --data-dir data --checkpoint models/efficientnet_b0.pth
-```
+Users can upload an MRI image through the Streamlit interface and obtain a prediction from a supported model.
 
-Metrics and a confusion matrix are written to `outputs/`.
+### 2. 🔬 Multiple Deep Learning Architectures
 
-## 5. Run the app
+NeuroVision includes three model checkpoints:
 
-```bash
-streamlit run app.py
-```
+- `models/resnet50.pth`
+- `models/efficientnet_b0.pth`
+- `models/custom_cnn.pth`
 
-The app needs a trained checkpoint in `models/`. The class scores are model outputs, not calibrated clinical probabilities. Grad-CAM is an approximate visualization of model attention, not proof of a medically meaningful explanation.
+Each checkpoint must be loaded using its corresponding architecture and compatible preprocessing pipeline.
 
-## Project structure
+### 3. 🔍 Explainable AI with Grad-CAM
+
+Gradient-weighted Class Activation Mapping (Grad-CAM) can help visualize image regions that influence a CNN's prediction. These visualizations are intended for research and model interpretation; they do not establish that a prediction is clinically correct or that highlighted regions represent tumor boundaries.
+
+### 4. 🌐 Interactive Streamlit Interface
+
+The web application provides an accessible interface for image uploads and model inference, with scope for model selection, prediction visualization, and explainability features.
+
+### 5. 📊 Model Evaluation
+
+The project can be evaluated using appropriate classification metrics, including:
+
+- Accuracy
+- Precision
+- Recall
+- F1-score
+- Confusion matrix
+- Per-class performance
+
+No performance figures are reported here because verified evaluation results have not yet been documented.
+
+## 🏗️ Model Architecture
+
+### ResNet50
+
+ResNet50 uses residual connections to facilitate the training of deep convolutional neural networks. It provides a baseline architecture for evaluating brain MRI classification.
+
+**Checkpoint:** `models/resnet50.pth`
+
+### EfficientNet-B0
+
+EfficientNet-B0 uses a compound scaling approach to balance network depth, width, and input resolution. It provides an alternative architecture for investigating the trade-off between predictive performance and computational cost.
+
+**Checkpoint:** `models/efficientnet_b0.pth`
+
+### Custom CNN
+
+The Custom CNN uses convolutional layers to extract image features, followed by classification layers that map learned features to the four target classes.
+
+**Checkpoint:** `models/custom_cnn.pth`
+
+The exact layer configuration should be documented alongside the implementation in the training code.
+
+## 🗂️ Project Architecture
 
 ```text
 neurovision-brain-mri/
 ├── app.py
+│   └── Main Streamlit web application
 ├── train.py
-├── evaluate.py
-├── gradcam.py
+│   └── Model training pipeline
 ├── requirements.txt
-├── .gitignore
-├── data/             # local dataset; not committed
-├── models/           # checkpoints; add only if repository size permits
-└── outputs/          # generated metrics/plots
+│   └── Python dependencies
+├── README.md
+│   └── Project documentation
+├── models/
+│   ├── resnet50.pth
+│   ├── efficientnet_b0.pth
+│   └── custom_cnn.pth
+└── data/
+    ├── Training/
+    │   ├── glioma/
+    │   ├── meningioma/
+    │   ├── notumor/
+    │   └── pituitary/
+    └── Testing/
+        ├── glioma/
+        ├── meningioma/
+        ├── notumor/
+        └── pituitary/
 ```
 
-## Evaluation and limitations
+*Note: This tree describes the expected layout. Adjust it to match the actual files and folders in the repository.*
 
-- Report accuracy, macro F1, per-class precision/recall, and the confusion matrix.
-- Avoid data leakage: keep all images from the same patient or source together when patient identifiers are available.
-- Check for duplicate or near-duplicate images across splits.
-- Performance on this dataset does not establish generalization to real clinical MRI scans or different hospitals/scanners.
-- Include dataset attribution and license details in your submission.
+## 🚀 Setup & Local Installation
 
-## Team
+### Prerequisites
 
-Sparsh Verma , Abhinav Singh
-## Experimental Results
+- Python 3.10 or a compatible Python version supported by your dependencies.
+- Git.
+- VS Code or another Python development environment.
+- Sufficient RAM and storage for PyTorch and the MRI dataset.
 
-All three models were evaluated on the same 1,600-image test set.
+### 1. Clone the Repository
 
-| Model | Accuracy | Macro F1-score |
-|---|---:|---:|
-| ResNet50 | 95.13% | 0.9506 |
-| EfficientNetB0 | 94.50% | 0.9437 |
-| Custom CNN | 58.06% | 0.5823 |
+```bash
+git clone https://github.com/vsparsh47-hash/neurovision-brain-mri.git
+cd neurovision-brain-mri
+```
 
-ResNet50 achieved the highest measured accuracy and macro F1-score among the three evaluated models.
+### 2. Create a Virtual Environment
 
-### Explainability
-Grad-CAM visualizations are provided for supported pretrained models to help inspect the image regions influencing predictions.
+**Windows PowerShell**
 
-### Limitations
-These results apply to the evaluated dataset and do not establish clinical validity or performance on MRI scans from other hospitals. The system is intended for research and educational use, not medical diagnosis.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**Linux / macOS**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If the requirements file does not include the required packages, install the missing dependencies explicitly:
+
+```bash
+pip install torch torchvision streamlit scikit-learn matplotlib pillow
+```
+
+The final dependency list should match the imports used by the application and training pipeline.
+
+## 💻 Running the Application
+
+Start the Streamlit application locally:
+
+```bash
+python -m streamlit run app.py
+```
+
+Open the local URL displayed in the terminal, usually:
+
+**http://localhost:8501**
+
+To specify a port:
+
+```bash
+python -m streamlit run app.py --server.port 8501
+```
+
+## 🏋️ Model Training
+
+The repository includes a training script named `train.py`.
+
+Ensure that the MRI dataset is present and organized into the expected class folders before training.
+
+### Train ResNet50
+
+```bash
+python train.py --data-dir data --model resnet50 --epochs 3
+```
+
+### Train EfficientNet-B0 and Custom CNN
+
+The exact model identifiers and supported arguments depend on the implementation of `train.py`. Use the model names accepted by that script and confirm that each training run saves its checkpoint to the expected path.
+
+Expected checkpoint filenames:
+
+```text
+models/resnet50.pth
+models/efficientnet_b0.pth
+models/custom_cnn.pth
+```
+
+The three-epoch command is a preliminary training run, not a guarantee of convergence or acceptable performance. Training duration, hyperparameters, and model selection should be determined using validation data.
+
+## 🧪 Testing & Verification
+
+Before deployment, verify the following.
+
+### Checkpoint Verification
+
+- Confirm that all expected checkpoint files exist.
+- Confirm that each checkpoint loads successfully with its matching architecture.
+- Confirm that the number and ordering of output classes match the application's class mapping.
+- Confirm that inference preprocessing matches the preprocessing used during training.
+
+### Prediction Verification
+
+- Test valid MRI image uploads.
+- Test unsupported image formats and corrupted files.
+- Confirm that the application handles missing checkpoints gracefully.
+- Verify that predictions and confidence scores are displayed correctly.
+- Confirm that Grad-CAM works with the selected model, where supported.
+
+### Model Evaluation
+
+Evaluate each model on a held-out test dataset that was not used for training or model selection. Report per-class precision, recall, F1-score, confusion matrices, and overall accuracy only after the evaluation has been executed and verified.
+
+For a fair comparison, use the same test split and consistent evaluation procedures across all three architectures.
+
+## ☁️ Deployment on Streamlit Community Cloud
+
+NeuroVision can be deployed using Streamlit Community Cloud.
+
+1. Push the application code to GitHub.
+2. Ensure that the required dependencies are listed in `requirements.txt`.
+3. Confirm that the deployed application can access all required model checkpoints.
+4. Open [Streamlit Community Cloud](https://share.streamlit.io/).
+5. Connect the GitHub repository and select the correct branch and `app.py` entry point.
+6. Deploy the application and inspect the logs if an error occurs.
+
+### Deployment Considerations
+
+- GitHub rejects individual files larger than 100 MB. The ResNet50 checkpoint should be checked against this limit before pushing.
+- Checkpoints excluded by `.gitignore` will not be uploaded unless explicitly added.
+- Large models may require Git LFS or external model storage.
+- Streamlit Community Cloud has resource limits; model loading and inference must be tested within those limits.
+- Never commit credentials, access tokens, or other secrets to the repository.
+
+## 🔐 Limitations & Responsible Use
+
+NeuroVision is a research and educational prototype. Its output can be affected by image quality, dataset composition, class imbalance, scanner differences, preprocessing, and model generalization.
+
+A model prediction or Grad-CAM visualization should not be interpreted as a definitive medical finding.
+
+The application is not validated for clinical diagnosis, treatment selection, or patient management. Any medical concern should be assessed by a qualified healthcare professional using appropriate clinical evaluation and validated diagnostic procedures.
+
+## 🛠️ Technologies Used
+
+| Technology | Purpose |
+|---|---|
+| Python | Core programming language |
+| PyTorch | Deep learning and model inference |
+| TorchVision | CNN architectures and image transformations |
+| Streamlit | Interactive web application |
+| Pillow | Image loading and processing |
+| Matplotlib | Visualization support |
+| Grad-CAM | Model explainability, where implemented |
+| Git & GitHub | Version control and collaboration |
+| Streamlit Community Cloud | Web application hosting |
+
+## 🔮 Future Enhancements
+
+- Interactive model selection between ResNet50, EfficientNet-B0, and Custom CNN.
+- Side-by-side model performance comparison.
+- Improved Grad-CAM visualization and explanation controls.
+- Automated testing for checkpoint loading and inference.
+- Validation-based hyperparameter tuning.
+- Improved model artifact management and deployment reliability.
+- Reproducible training and evaluation reports.
+
+## 👥 Contributors & Acknowledgements
+
+**Project:** NeuroVision — Explainable Brain MRI Classification
+
+**Repository:** [vsparsh47-hash/neurovision-brain-mri](https://github.com/vsparsh47-hash/neurovision-brain-mri)
+
+Developed as a machine learning and medical imaging research and educational project.
+
+## 📄 License
+
+This project is intended to be distributed under the MIT License. Ensure that a `LICENSE` file is present in the repository before claiming that the project is formally licensed under MIT.
+
+---
+
+**Disclaimer:** NeuroVision is not a medical diagnostic tool. Its predictions are intended for research and educational exploration only and must not be used for clinical decisions.
